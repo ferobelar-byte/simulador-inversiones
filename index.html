@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Inversiones Argentina - BCRA Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #333; padding: 20px; min-height: 100vh; }
+        .container { max-width: 1600px; margin: 0 auto; display: grid; grid-template-columns: 1fr 2fr; gap: 25px; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        h1 { color: white; text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); margin-bottom: 30px; }
+        h2 { color: #2c3e50; border-bottom: 3px solid #667eea; padding-bottom: 10px; }
+        .input-group { margin-bottom: 18px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; color: #34495e; }
+        input, select, textarea { width: 100%; padding: 12px; border: 2px solid #bdc3c7; border-radius: 8px; box-sizing: border-box; transition: border-color 0.3s; }
+        input:focus, select:focus, textarea:focus { border-color: #667eea; outline: none; }
+        
+        button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px 20px; border-radius: 10px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; margin-top: 15px; transition: transform 0.2s; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
+        button.add-withdrawal { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        button.remove-btn { background: #e74c3c; padding: 6px 12px; width: auto; font-size: 11px; margin: 0; }
+        button.edit-withdrawal { background: #3498db; padding: 4px 8px; width: auto; font-size: 11px; margin-left: 5px; }
+        button.add-row { background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); padding: 8px 15px; width: auto; font-size: 13px; margin: 5px 0; }
+        button.save-annotator { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 10px 20px; width: auto; font-size: 14px; }
+        button.cancel-annotator { background: #95a5a6; padding: 10px 20px; width: auto; font-size: 14px; }
+        
+        .data-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .data-buttons button { margin-top: 0; font-size: 13px; padding: 10px; }
+        .btn-export { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .btn-import { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .btn-clear { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        
+        .save-indicator { 
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            background: #27ae60; 
+            color: white; 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            display: none; 
+            z-index: 10000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .save-indicator.show { display: block; }
+        
+        .withdrawal-list { list-style: none; padding: 0; margin-top: 12px; max-height: 200px; overflow-y: auto; }
+        .withdrawal-item { background: #f8f9fa; padding: 10px 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-radius: 6px; border-left: 4px solid #f5576c; border: 1px solid #bdc3c7; }
+        .withdrawal-item.active { background: #e3f2fd; border-left-color: #2196f3; }
+        .withdrawal-item.capital { border-left-color: #27ae60; background: #e8f5e9; }
+        
+        .scenario-box { background: #f8f9fa; border-radius: 10px; padding: 15px; margin-bottom: 20px; border: 2px solid #bdc3c7; }
+        .scenario-box h3 { margin-top: 0; color: #2c3e50; }
+        .best-rate { color: #27ae60; font-weight: bold; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; border: 2px solid #95a5a6; }
+        th, td { border: 1px solid #95a5a6; padding: 10px; text-align: right; }
+        th { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; }
+        tr:nth-child(even) { background-color: #f8f9fa; }
+        tr:hover { background-color: #e3f2fd; }
+        .profit { color: #27ae60; font-weight: 600; }
+        .loss { color: #e74c3c; font-weight: 600; }
+        
+        .withdrawal-input-cell, .capital-input-cell { 
+            position: relative; 
+            cursor: pointer;
+            min-width: 120px;
+        }
+        .withdrawal-input-cell:hover, .capital-input-cell:hover {
+            background-color: #fff3cd !important;
+        }
+        .withdrawal-input-cell input, .capital-input-cell input {
+            width: 100%;
+            padding: 6px;
+            border: 2px dashed #e74c3c;
+            border-radius: 4px;
+            text-align: right;
+            font-weight: 600;
+            color: #e74c3c;
+            background: transparent;
+        }
+        .capital-input-cell input {
+            border-color: #27ae60;
+            color: #27ae60;
+        }
+        .withdrawal-input-cell input:focus, .capital-input-cell input:focus {
+            outline: none;
+            border-style: solid;
+            border-color: #667eea;
+        }
+        .withdrawal-display, .capital-display {
+            font-weight: 600;
+            padding: 4px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .withdrawal-display { color: #e74c3c; }
+        .capital-display { color: #27ae60; }
+        .withdrawal-display:hover, .capital-display:hover {
+            background-color: #ffebee;
+            text-decoration: underline;
+        }
+        .add-withdrawal-hint {
+            font-size: 10px;
+            color: #7f8c8d;
+            margin-top: 2px;
+        }
+        .annotator-icon {
+            font-size: 12px;
+            margin-left: 5px;
+            opacity: 0.7;
+        }
+        
+        .summary-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 25px; }
+        .summary-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 10px; text-align: center; cursor: pointer; transition: all 0.3s; border: 2px solid #bdc3c7; }
+        .summary-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4); }
+        .summary-card h4 { margin: 0 0 8px 0; font-size: 14px; opacity: 0.9; }
+        .summary-card .value { font-size: 24px; font-weight: bold; }
+        .summary-card.winner { background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); }
+        .summary-card.active { border: 3px solid #f1c40f; transform: scale(1.05); }
+        
+        .scenario-selector { 
+            display: flex; 
+            gap: 10px; 
+            margin: 20px 0; 
+            background: #f8f9fa; 
+            padding: 5px; 
+            border-radius: 10px;
+            border: 2px solid #bdc3c7;
+        }
+        .scenario-tab {
+            flex: 1;
+            padding: 12px 20px;
+            border: 1px solid #bdc3c7;
+            background: white;
+            color: #7f8c8d;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s;
+            margin: 0;
+        }
+        .scenario-tab:hover { background: rgba(102, 126, 234, 0.1); color: #667eea; }
+        .scenario-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+            box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
+        }
+        
+        .inflation-note { background: #fff3cd; border: 2px solid #ffc107; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; color: #856404; }
+        
+        .table-container { 
+            overflow-x: auto; 
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 8px;
+            border: 2px solid #95a5a6;
+        }
+        
+        /* Modal Anotador */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .annotator-modal {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            border: 2px solid #95a5a6;
+        }
+        .annotator-modal h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .annotator-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            border: 2px solid #95a5a6;
+        }
+        .annotator-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #95a5a6;
+        }
+        .annotator-table td {
+            border: 1px solid #95a5a6;
+            padding: 8px;
+        }
+        .annotator-table input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+        }
+        .annotator-table .desc-input {
+            width: 100%;
+        }
+        .annotator-table .amount-input {
+            width: 120px;
+            text-align: right;
+        }
+        .annotator-total {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            text-align: right;
+            border: 2px solid #bdc3c7;
+        }
+        .annotator-total span {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .annotator-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .annotator-actions button {
+            width: auto;
+            margin-top: 0;
+        }
+        
+        .movement-detail {
+            font-size: 10px;
+            color: #7f8c8d;
+            margin-top: 3px;
+            max-height: 40px;
+            overflow-y: auto;
+        }
+        
+        #importFileInput { display: none; }
+        
+        @media (max-width: 900px) {
+            .container { grid-template-columns: 1fr; }
+            .summary-cards { grid-template-columns: 1fr; }
+            .data-buttons { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="save-indicator" id="saveIndicator">💾 Guardado automáticamente</div>
+
+    <h1>🇦 Simulador de Inversiones Argentina</h1>
+    <p style="text-align: center; color: white; margin-bottom: 25px;">
+        Tasas actualizadas según BCRA | Plazos Fijos en Pesos
+    </p>
+
+    <div class="container">
+        <!-- Panel de Control -->
+        <div class="card">
+            <h2>⚙️ Configuración</h2>
+            
+            <div class="input-group">
+                <label>💰 Capital Inicial (USD)</label>
+                <input type="number" id="initialCapital" value="1000000" onchange="autoSave()">
+                <small style="color: #7f8c8d;">Se convertirá a ARS al tipo de cambio oficial</small>
+            </div>
+
+            <div class="input-group">
+                <label>📅 Tipo de Cambio ARS/USD (Referencia)</label>
+                <input type="number" id="exchangeRate" value="1000" onchange="autoSave()">
+            </div>
+
+            <div class="input-group">
+                <label>📈 Duración de la Proyección (Meses)</label>
+                <input type="number" id="duration" value="24" min="1" max="60" onchange="autoSave()">
+            </div>
+
+            <div class="inflation-note">
+                <strong>💡 Tip:</strong> Podés agregar retiros O aportes de capital en cualquier mes. Los aportes se suman al capital y generan intereses.
+            </div>
+
+            <!-- Escenario A: Plazo Fijo Tradicional -->
+            <div class="scenario-box">
+                <h3>🏦 Escenario A: Plazo Fijo Tradicional</h3>
+                <label>Banco (Tasas BCRA)</label>
+                <select id="bankA" onchange="autoSave()">
+                    <option value="28" selected>Banco Macro (28% TNA)</option>
+                    <option value="25">Banco Nación / PBA (25% TNA)</option>
+                    <option value="23">Santander / Galicia / BBVA (23% TNA)</option>
+                    <option value="33.5">Banco CMF / Voii (33.5% TNA)</option>
+                    <option value="34.1">Crédito Regional No Cliente (34.1% TNA) ⭐</option>
+                    <option value="33">Banco Mariva (32.5% TNA)</option>
+                    <option value="custom">Otra tasa (personalizar)</option>
+                </select>
+                <div id="customRateA" style="display:none; margin-top:10px;">
+                    <label>TNA Personalizada (%)</label>
+                    <input type="number" id="rateACustom" step="0.1" onchange="autoSave()">
+                </div>
+                <label>Capitalización</label>
+                <select id="freqA" onchange="autoSave()">
+                    <option value="30">Cada 30 días (Plazo Fijo Clásico)</option>
+                    <option value="1">Diaria</option>
+                </select>
+            </div>
+
+            <!-- Escenario B: Alternativas -->
+            <div class="scenario-box">
+                <h3>📊 Escenario B: Alternativas</h3>
+                <label>Tipo de Inversión</label>
+                <select id="investmentTypeB" onchange="updateScenarioB(); autoSave()">
+                    <option value="plazo_fijo_uva">Plazo Fijo UVA (Ajuste por inflación + 1%)</option>
+                    <option value="cedears">CEDEARs S&P500 (Dólar Linked)</option>
+                    <option value="on">Obligaciones Negociables (USD)</option>
+                    <option value="bonos">Bonos Soberanos (Riesgo Alto)</option>
+                    <option value="custom">Personalizar</option>
+                </select>
+                
+                <div id="scenarioBDetails">
+                    <label>Tasa Estimada Anual (%)</label>
+                    <input type="number" id="rateB" value="8" step="0.1" onchange="autoSave()">
+                    <small id="rateBNote" style="color: #7f8c8d;">Estimado en USD.</small>
+                </div>
+            </div>
+
+            <!-- Movimientos -->
+            <div class="input-group">
+                <h3>💸 Movimientos de Capital</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                    <div>
+                        <label>Mes</label>
+                        <input type="number" id="moveMonth" min="1" max="60" placeholder="Ej: 6">
+                    </div>
+                    <div>
+                        <label>Retiro (-)</label>
+                        <input type="number" id="withdrawAmount" placeholder="Monto USD">
+                    </div>
+                    <div>
+                        <label>Aporte (+)</label>
+                        <input type="number" id="capitalAmount" placeholder="Monto USD">
+                    </div>
+                </div>
+                <button class="add-withdrawal" onclick="addMovementFromPanel()" style="margin-top: 10px;">➕ Agregar Movimiento</button>
+                <ul id="movementList" class="withdrawal-list"></ul>
+                <small style="color: #7f8c8d; display: block; margin-top: 8px;">
+                    💡 También podés hacer clic en las columnas de la tabla
+                </small>
+            </div>
+
+            <!-- Botones de Gestión de Datos -->
+            <div class="data-buttons">
+                <button class="btn-export" onclick="exportData()">📥 Exportar Datos</button>
+                <button class="btn-import" onclick="document.getElementById('importFileInput').click()">📤 Importar Datos</button>
+                <button class="btn-clear" onclick="clearAllData()">🗑️ Borrar Todo</button>
+            </div>
+            <input type="file" id="importFileInput" accept=".json" onchange="importData(event)">
+
+            <button onclick="calculate()" style="margin-top: 15px;">🚀 Calcular Proyección Comparada</button>
+        </div>
+
+        <!-- Resultados -->
+        <div class="card">
+            <h2>📈 Resultados y Análisis</h2>
+            
+            <div class="summary-cards" id="summary">
+                <div class="summary-card" id="cardA" onclick="selectScenario('A')">
+                    <h4>Escenario A (Plazo Fijo)</h4>
+                    <div class="value" id="resultA">-</div>
+                </div>
+                <div class="summary-card" id="cardB" onclick="selectScenario('B')">
+                    <h4>Escenario B (Alternativa)</h4>
+                    <div class="value" id="resultB">-</div>
+                </div>
+            </div>
+
+            <canvas id="growthChart" style="max-height: 400px;"></canvas>
+            
+            <h3 style="margin-top: 30px;">📋 Detalle Mensual - <span id="tableScenarioTitle">Escenario A</span></h3>
+            
+            <!-- Selector de Escenario para la Tabla -->
+            <div class="scenario-selector">
+                <button class="scenario-tab active" id="tabA" onclick="switchTableScenario('A')">
+                    🏦 Escenario A<br>
+                    <small style="font-size: 11px; opacity: 0.9;">Plazo Fijo en Pesos</small>
+                </button>
+                <button class="scenario-tab" id="tabB" onclick="switchTableScenario('B')">
+                    📊 Escenario B<br>
+                    <small style="font-size: 11px; opacity: 0.9;">Inversión en USD</small>
+                </button>
+            </div>
+            
+            <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 10px;">
+                💡 <strong>Hacé clic en "Retiros" o "Aportes" para editar con anotador. Los aportes se suman al capital y generan intereses.</strong>
+            </p>
+            <div class="table-container">
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th style="position: sticky; top: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 10;">Mes</th>
+                            <th style="position: sticky; top: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 10;" id="col1Header">Saldo Inicial (ARS)</th>
+                            <th style="position: sticky; top: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 10;" id="col2Header">Interés (ARS)</th>
+                            <th style="position: sticky; top: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 10; min-width: 130px;">
+                                Retiros (USD)<br>
+                                <small style="font-weight: normal; font-size: 10px;">(Click para editar)</small>
+                            </th>
+                            <th style="position: sticky; top: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 10; min-width: 150px;">
+                                Aportes de Capital (USD)<br>
+                                <small style="font-weight: normal; font-size: 10px;">(Click para agregar)</small>
+                            </th>
+                            <th style="position: sticky; top: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 10;" id="col3Header">Saldo Final (ARS)</th>
+                            <th style="position: sticky; top: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 10;" id="col4Header">Equivalente USD*</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <small style="color: #7f8c8d; display: block; margin-top: 10px;" id="tableNote">
+                * USD estimado al tipo de cambio proyectado (sin considerar brecha cambiaria)
+            </small>
+        </div>
+    </div>
+
+    <!-- Modal Anotador -->
+    <div class="modal-overlay" id="annotatorModal">
+        <div class="annotator-modal">
+            <h3 id="annotatorTitle">📝 Anotador de Movimientos</h3>
+            <p style="color: #7f8c8d; font-size: 13px;">Agregá hasta 10 items con descripción y monto. El total se calculará automáticamente.</p>
+            
+            <table class="annotator-table">
+                <thead>
+                    <tr>
+                        <th style="width: 70%;">Descripción</th>
+                        <th style="width: 30%;">Monto (USD)</th>
+                    </tr>
+                </thead>
+                <tbody id="annotatorRows">
+                    <!-- Las filas se generan dinámicamente -->
+                </tbody>
+            </table>
+            
+            <button class="add-row" onclick="addAnnotatorRow()">➕ Agregar Fila</button>
+            
+            <div class="annotator-total">
+                Total: <span id="annotatorTotalValue">$0 USD</span>
+            </div>
+            
+            <div class="annotator-actions">
+                <button class="cancel-annotator" onclick="closeAnnotator()">Cancelar</button>
+                <button class="save-annotator" onclick="saveAnnotator()">💾 Guardar y Aplicar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let movements = [];
+        let chartInstance = null;
+        let calculationDataA = null;
+        let calculationDataB = null;
+        let currentExchangeRate = 1000;
+        let currentTableScenario = 'A';
+        
+        // Variables del anotador
+        let currentAnnotatorMonth = 0;
+        let currentAnnotatorType = ''; // 'withdrawal' o 'capital'
+        let annotatorRows = [];
+
+        // ==================== FUNCIONES DE LOCALSTORAGE ====================
+        
+        function autoSave() {
+            const data = {
+                initialCapital: document.getElementById('initialCapital').value,
+                exchangeRate: document.getElementById('exchangeRate').value,
+                duration: document.getElementById('duration').value,
+                bankA: document.getElementById('bankA').value,
+                rateACustom: document.getElementById('rateACustom').value,
+                freqA: document.getElementById('freqA').value,
+                investmentTypeB: document.getElementById('investmentTypeB').value,
+                rateB: document.getElementById('rateB').value,
+                movements: movements,
+                timestamp: new Date().toISOString()
+            };
+            
+            localStorage.setItem('simuladorInversionesData', JSON.stringify(data));
+            showSaveIndicator();
+        }
+
+        function loadSavedData() {
+            const saved = localStorage.getItem('simuladorInversionesData');
+            if (saved) {
+                const data = JSON.parse(saved);
+                
+                document.getElementById('initialCapital').value = data.initialCapital || '1000000';
+                document.getElementById('exchangeRate').value = data.exchangeRate || '1000';
+                document.getElementById('duration').value = data.duration || '24';
+                document.getElementById('bankA').value = data.bankA || '28';
+                document.getElementById('rateACustom').value = data.rateACustom || '';
+                document.getElementById('freqA').value = data.freqA || '30';
+                document.getElementById('investmentTypeB').value = data.investmentTypeB || 'plazo_fijo_uva';
+                document.getElementById('rateB').value = data.rateB || '8';
+                
+                movements = data.movements || [];
+                
+                updateScenarioB();
+                renderMovements();
+                
+                if (movements.length > 0) {
+                    calculate();
+                }
+                
+                console.log('✅ Datos cargados correctamente');
+            }
+        }
+
+        function showSaveIndicator() {
+            const indicator = document.getElementById('saveIndicator');
+            indicator.classList.add('show');
+            setTimeout(() => {
+                indicator.classList.remove('show');
+            }, 2000);
+        }
+
+        function exportData() {
+            const data = localStorage.getItem('simuladorInversionesData');
+            if (!data) {
+                alert('No hay datos para exportar');
+                return;
+            }
+            
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `simulador-backup-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showSaveIndicator();
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Validar que tenga los campos necesarios
+                    if (!data.initialCapital || !data.movements) {
+                        throw new Error('Archivo inválido');
+                    }
+                    
+                    localStorage.setItem('simuladorInversionesData', JSON.stringify(data));
+                    
+                    if (confirm('✅ Datos importados correctamente. ¿Querés recargar la página?')) {
+                        location.reload();
+                    }
+                } catch (error) {
+                    alert('❌ Error al importar: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+            
+            // Resetear el input
+            event.target.value = '';
+        }
+
+        function clearAllData() {
+            if (confirm('⚠️ ¿Estás seguro de que querés BORRAR TODOS LOS DATOS? Esta acción no se puede deshacer.')) {
+                if (confirm('⚠️ ¿Última confirmación? Se perderán todos los movimientos y configuraciones.')) {
+                    localStorage.removeItem('simuladorInversionesData');
+                    movements = [];
+                    renderMovements();
+                    alert('🗑️ Todos los datos fueron borrados');
+                    location.reload();
+                }
+            }
+        }
+
+        // ==================== FUNCIONES EXISTENTES ====================
+
+        document.getElementById('bankA').addEventListener('change', function() {
+            const customDiv = document.getElementById('customRateA');
+            customDiv.style.display = this.value === 'custom' ? 'block' : 'none';
+        });
+
+        function updateScenarioB() {
+            const type = document.getElementById('investmentTypeB').value;
+            const rateInput = document.getElementById('rateB');
+            const note = document.getElementById('rateBNote');
+            
+            const presets = {
+                'plazo_fijo_uva': { rate: 1, note: 'Ajuste por CER + 1% anual. Protege contra inflación.' },
+                'cedears': { rate: 8, note: 'Histórico S&P500 ~8-10% anual en USD + variación del dólar.' },
+                'on': { rate: 9, note: 'Obligaciones Negociables en USD: 7-12% anual según emisora.' },
+                'bonos': { rate: 15, note: 'Bonos soberanos: alto rendimiento pero alta volatilidad y riesgo.' },
+                'custom': { rate: 8, note: 'Ingresá tu tasa estimada anual.' }
+            };
+            
+            rateInput.value = presets[type].rate;
+            note.textContent = presets[type].note;
+        }
+
+        function selectScenario(scenario) {
+            switchTableScenario(scenario);
+        }
+
+        function switchTableScenario(scenario) {
+            currentTableScenario = scenario;
+            
+            document.getElementById('tabA').classList.remove('active');
+            document.getElementById('tabB').classList.remove('active');
+            document.getElementById(`tab${scenario}`).classList.add('active');
+            
+            document.getElementById('cardA').classList.remove('active');
+            document.getElementById('cardB').classList.remove('active');
+            document.getElementById(`card${scenario}`).classList.add('active');
+            
+            const scenarioNames = {
+                'A': 'Escenario A (Plazo Fijo en Pesos)',
+                'B': `Escenario B (${document.getElementById('investmentTypeB').options[document.getElementById('investmentTypeB').selectedIndex].text})`
+            };
+            document.getElementById('tableScenarioTitle').textContent = scenarioNames[scenario];
+            
+            if (scenario === 'A') {
+                document.getElementById('col1Header').textContent = 'Saldo Inicial (ARS)';
+                document.getElementById('col2Header').textContent = 'Interés (ARS)';
+                document.getElementById('col3Header').textContent = 'Saldo Final (ARS)';
+                document.getElementById('col4Header').textContent = 'Equivalente USD*';
+                document.getElementById('tableNote').textContent = '* USD estimado al tipo de cambio proyectado (sin considerar brecha cambiaria)';
+            } else {
+                document.getElementById('col1Header').textContent = 'Saldo Inicial (USD)';
+                document.getElementById('col2Header').textContent = 'Ganancia (USD)';
+                document.getElementById('col3Header').textContent = 'Saldo Final (USD)';
+                document.getElementById('col4Header').textContent = 'Retiros Acumulados';
+                document.getElementById('tableNote').textContent = '* Inversión directa en dólares sin conversión';
+            }
+            
+            if (calculationDataA && calculationDataB) {
+                if (scenario === 'A') {
+                    renderTable(calculationDataA, 'A');
+                } else {
+                    renderTable(calculationDataB, 'B');
+                }
+            }
+        }
+
+        function addMovementFromPanel() {
+            const month = parseInt(document.getElementById('moveMonth').value);
+            const withdrawAmount = parseFloat(document.getElementById('withdrawAmount').value) || 0;
+            const capitalAmount = parseFloat(document.getElementById('capitalAmount').value) || 0;
+
+            if (!month || month < 1) return alert("Ingresá un mes válido (1-60)");
+            if (!withdrawAmount && !capitalAmount) return alert("Ingresá al menos un retiro o un aporte");
+
+            let existingIndex = movements.findIndex(m => m.month === month);
+            
+            if (existingIndex >= 0) {
+                if (withdrawAmount > 0) movements[existingIndex].withdrawal = withdrawAmount;
+                if (capitalAmount > 0) movements[existingIndex].capital = capitalAmount;
+            } else {
+                movements.push({ 
+                    month, 
+                    withdrawal: withdrawAmount > 0 ? withdrawAmount : 0,
+                    capital: capitalAmount > 0 ? capitalAmount : 0,
+                    withdrawalDetails: [],
+                    capitalDetails: []
+                });
+            }
+            
+            movements.sort((a, b) => a.month - b.month);
+            renderMovements();
+            autoSave();
+            
+            if (calculationDataA || calculationDataB) {
+                calculate();
+            }
+            
+            document.getElementById('moveMonth').value = '';
+            document.getElementById('withdrawAmount').value = '';
+            document.getElementById('capitalAmount').value = '';
+        }
+
+        function addWithdrawalFromTable(month, amount, details = []) {
+            let moveIndex = movements.findIndex(m => m.month === month);
+            
+            if (moveIndex >= 0) {
+                if (!amount || amount <= 0) {
+                    movements[moveIndex].withdrawal = 0;
+                    movements[moveIndex].withdrawalDetails = [];
+                } else {
+                    movements[moveIndex].withdrawal = amount;
+                    movements[moveIndex].withdrawalDetails = details;
+                }
+                if (movements[moveIndex].withdrawal === 0 && movements[moveIndex].capital === 0) {
+                    movements.splice(moveIndex, 1);
+                }
+            } else if (amount && amount > 0) {
+                movements.push({ month, withdrawal: amount, capital: 0, withdrawalDetails: details, capitalDetails: [] });
+            }
+            
+            movements.sort((a, b) => a.month - b.month);
+            renderMovements();
+            autoSave();
+            
+            if (calculationDataA || calculationDataB) {
+                calculate();
+            }
+        }
+
+        function addCapitalFromTable(month, amount, details = []) {
+            let moveIndex = movements.findIndex(m => m.month === month);
+            
+            if (moveIndex >= 0) {
+                if (!amount || amount <= 0) {
+                    movements[moveIndex].capital = 0;
+                    movements[moveIndex].capitalDetails = [];
+                } else {
+                    movements[moveIndex].capital = amount;
+                    movements[moveIndex].capitalDetails = details;
+                }
+                if (movements[moveIndex].withdrawal === 0 && movements[moveIndex].capital === 0) {
+                    movements.splice(moveIndex, 1);
+                }
+            } else if (amount && amount > 0) {
+                movements.push({ month, withdrawal: 0, capital: amount, withdrawalDetails: [], capitalDetails: details });
+            }
+            
+            movements.sort((a, b) => a.month - b.month);
+            renderMovements();
+            autoSave();
+            
+            if (calculationDataA || calculationDataB) {
+                calculate();
+            }
+        }
+
+        function renderMovements() {
+            const list = document.getElementById('movementList');
+            list.innerHTML = '';
+            
+            if (movements.length === 0) {
+                list.innerHTML = '<li style="color: #95a5a6; padding: 10px; text-align: center;">No hay movimientos planificados</li>';
+                return;
+            }
+            
+            movements.forEach((m, index) => {
+                const li = document.createElement('li');
+                li.className = 'withdrawal-item';
+                
+                let content = `<div><span style="font-weight: 600; color: #2c3e50;">📅 Mes ${m.month}</span><br>`;
+                
+                if (m.withdrawal > 0) {
+                    content += `<span style="color: #e74c3c; font-size: 14px;">🔻 -$${m.withdrawal.toLocaleString('es-AR')} USD</span>`;
+                    if (m.withdrawalDetails && m.withdrawalDetails.length > 0) {
+                        content += `<div class="movement-detail">${m.withdrawalDetails.length} concepto(s)</div>`;
+                    }
+                }
+                if (m.capital > 0) {
+                    if (m.withdrawal > 0) content += ' | ';
+                    content += `<span style="color: #27ae60; font-size: 14px;">🔺 +$${m.capital.toLocaleString('es-AR')} USD</span>`;
+                    if (m.capitalDetails && m.capitalDetails.length > 0) {
+                        content += `<div class="movement-detail">${m.capitalDetails.length} concepto(s)</div>`;
+                    }
+                }
+                content += '</div>';
+                
+                content += `<div>
+                    <button class="edit-withdrawal" onclick="editMovement(${index})">✏️</button>
+                    <button class="remove-btn" onclick="removeMovement(${index})">✕</button>
+                </div>`;
+                
+                li.innerHTML = content;
+                list.appendChild(li);
+            });
+        }
+
+        function editMovement(index) {
+            const m = movements[index];
+            document.getElementById('moveMonth').value = m.month;
+            document.getElementById('withdrawAmount').value = m.withdrawal || '';
+            document.getElementById('capitalAmount').value = m.capital || '';
+            removeMovement(index);
+        }
+
+        function removeMovement(index) {
+            movements.splice(index, 1);
+            renderMovements();
+            autoSave();
+            
+            if (calculationDataA || calculationDataB) {
+                calculate();
+            }
+        }
+
+        // Funciones del Anotador
+        function openAnnotator(month, type, existingDetails = []) {
+            currentAnnotatorMonth = month;
+            currentAnnotatorType = type;
+            
+            const modal = document.getElementById('annotatorModal');
+            const title = document.getElementById('annotatorTitle');
+            
+            if (type === 'withdrawal') {
+                title.textContent = '📝 Anotador de Retiros - Mes ' + month;
+                title.style.borderBottomColor = '#e74c3c';
+            } else {
+                title.textContent = '📝 Anotador de Aportes - Mes ' + month;
+                title.style.borderBottomColor = '#27ae60';
+            }
+            
+            // Inicializar filas
+            annotatorRows = existingDetails && existingDetails.length > 0 ? 
+                JSON.parse(JSON.stringify(existingDetails)) : 
+                [{ description: '', amount: '' }];
+            
+            // Asegurar al menos 1 fila
+            if (annotatorRows.length === 0) {
+                annotatorRows = [{ description: '', amount: '' }];
+            }
+            
+            renderAnnotatorRows();
+            modal.classList.add('active');
+        }
+
+        function closeAnnotator() {
+            document.getElementById('annotatorModal').classList.remove('active');
+        }
+
+        function renderAnnotatorRows() {
+            const tbody = document.getElementById('annotatorRows');
+            tbody.innerHTML = '';
+            
+            annotatorRows.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <input type="text" class="desc-input" placeholder="Descripción (ej: Alquiler, Servicios...)" value="${row.description || ''}" onchange="updateAnnotatorRow(${index}, 'description', this.value)">
+                    </td>
+                    <td>
+                        <input type="number" class="amount-input" placeholder="0" value="${row.amount || ''}" min="0" step="0.01" onchange="updateAnnotatorRow(${index}, 'amount', this.value)">
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            // Agregar filas vacías hasta completar 10 si es necesario
+            while (annotatorRows.length < 10) {
+                const tr = document.createElement('tr');
+                const index = annotatorRows.length;
+                tr.innerHTML = `
+                    <td>
+                        <input type="text" class="desc-input" placeholder="Descripción opcional..." value="" onchange="updateAnnotatorRow(${index}, 'description', this.value)">
+                    </td>
+                    <td>
+                        <input type="number" class="amount-input" placeholder="0" value="" min="0" step="0.01" onchange="updateAnnotatorRow(${index}, 'amount', this.value)">
+                    </td>
+                `;
+                tbody.appendChild(tr);
+                annotatorRows.push({ description: '', amount: '' });
+            }
+            
+            calculateAnnotatorTotal();
+        }
+
+        function addAnnotatorRow() {
+            if (annotatorRows.length < 10) {
+                annotatorRows.push({ description: '', amount: '' });
+                renderAnnotatorRows();
+            } else {
+                alert('Máximo 10 filas permitidas');
+            }
+        }
+
+        function updateAnnotatorRow(index, field, value) {
+            annotatorRows[index][field] = field === 'amount' ? (value ? parseFloat(value) : '') : value;
+            calculateAnnotatorTotal();
+        }
+
+        function calculateAnnotatorTotal() {
+            const total = annotatorRows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
+            document.getElementById('annotatorTotalValue').textContent = '$' + total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' USD';
+        }
+
+        function saveAnnotator() {
+            const total = annotatorRows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
+            
+            // Filtrar filas con monto
+            const details = annotatorRows.filter(row => row.amount && parseFloat(row.amount) > 0);
+            
+            if (total <= 0) {
+                alert('Ingresá al menos un monto válido');
+                return;
+            }
+            
+            if (currentAnnotatorType === 'withdrawal') {
+                addWithdrawalFromTable(currentAnnotatorMonth, total, details);
+            } else {
+                addCapitalFromTable(currentAnnotatorMonth, total, details);
+            }
+            
+            closeAnnotator();
+        }
+
+        function enableWithdrawalEdit(month, currentValue, scenario) {
+            const moveIndex = movements.findIndex(m => m.month === month);
+            const existingDetails = moveIndex >= 0 ? movements[moveIndex].withdrawalDetails : [];
+            openAnnotator(month, 'withdrawal', existingDetails);
+        }
+
+        function enableCapitalEdit(month, currentValue, scenario) {
+            const moveIndex = movements.findIndex(m => m.month === month);
+            const existingDetails = moveIndex >= 0 ? movements[moveIndex].capitalDetails : [];
+            openAnnotator(month, 'capital', existingDetails);
+        }
+
+        function calculate() {
+            const capitalUSD = parseFloat(document.getElementById('initialCapital').value);
+            currentExchangeRate = parseFloat(document.getElementById('exchangeRate').value);
+            const months = parseInt(document.getElementById('duration').value);
+            const capitalARS = capitalUSD * currentExchangeRate;
+
+            let rateA = document.getElementById('bankA').value;
+            if (rateA === 'custom') {
+                rateA = parseFloat(document.getElementById('rateACustom').value);
+            } else {
+                rateA = parseFloat(rateA);
+            }
+            const nameA = document.getElementById('bankA').options[document.getElementById('bankA').selectedIndex].text.split('(')[0].trim();
+            const freqA = parseInt(document.getElementById('freqA').value);
+
+            const rateB = parseFloat(document.getElementById('rateB').value) / 100;
+            const investmentType = document.getElementById('investmentTypeB').value;
+            const nameB = document.getElementById('investmentTypeB').options[document.getElementById('investmentTypeB').selectedIndex].text;
+
+            calculationDataA = simulatePF(capitalARS, months, rateA/100, freqA, movements, currentExchangeRate);
+            calculationDataB = simulateAlternative(capitalUSD, months, rateB, movements, investmentType, currentExchangeRate);
+
+            const finalA = calculationDataA[calculationDataA.length - 1].balanceARS;
+            const finalB = calculationDataB[calculationDataB.length - 1].balanceUSD;
+            const finalA_USD = finalA / calculationDataA[calculationDataA.length - 1].exchangeRate;
+
+            document.getElementById('resultA').textContent = `$${finalA_USD.toLocaleString('es-AR', {maximumFractionDigits: 0})} USD`;
+            document.getElementById('resultB').textContent = `$${finalB.toLocaleString('es-AR', {maximumFractionDigits: 0})} USD`;
+
+            document.querySelectorAll('.summary-card').forEach(card => card.classList.remove('winner'));
+            const winnerCard = document.querySelector(`#result${finalA_USD > finalB ? 'A' : 'B'}`).closest('.summary-card');
+            winnerCard.classList.add('winner');
+            
+            document.getElementById('cardA').classList.remove('active');
+            document.getElementById('cardB').classList.remove('active');
+            document.getElementById(`card${currentTableScenario}`).classList.add('active');
+
+            if (currentTableScenario === 'A') {
+                renderTable(calculationDataA, 'A');
+            } else {
+                renderTable(calculationDataB, 'B');
+            }
+            
+            renderChart(nameA, nameB, calculationDataA, calculationDataB);
+        }
+
+        function simulatePF(initialARS, months, annualRate, capitalizationDays, movementsList, baseExchangeRate) {
+            let currentBalance = initialARS;
+            let results = [];
+            let projectedExchangeRate = baseExchangeRate;
+            const monthlyInflationEstimate = 0.03;
+
+            for (let m = 1; m <= months; m++) {
+                const startBalance = currentBalance;
+                let interestEarned = 0;
+                let withdrawalARS = 0;
+                let capitalARS = 0;
+
+                const periodsPerMonth = 30 / capitalizationDays;
+                const periodRate = annualRate / (365 / capitalizationDays);
+                interestEarned = currentBalance * (Math.pow(1 + periodRate, periodsPerMonth) - 1);
+                
+                currentBalance += interestEarned;
+
+                projectedExchangeRate *= (1 + monthlyInflationEstimate);
+                const monthMovements = movementsList.filter(mov => mov.month === m);
+                
+                monthMovements.forEach(mov => {
+                    if (mov.withdrawal > 0) {
+                        const withdrawalInARS = mov.withdrawal * projectedExchangeRate;
+                        if (currentBalance >= withdrawalInARS) {
+                            currentBalance -= withdrawalInARS;
+                            withdrawalARS += withdrawalInARS;
+                        } else {
+                            withdrawalARS = currentBalance;
+                            currentBalance = 0;
+                        }
+                    }
+                    
+                    if (mov.capital > 0) {
+                        const capitalInARS = mov.capital * projectedExchangeRate;
+                        currentBalance += capitalInARS;
+                        capitalARS += capitalInARS;
+                    }
+                });
+
+                results.push({
+                    month: m,
+                    startBalanceARS: startBalance,
+                    interestARS: interestEarned,
+                    withdrawalUSD: monthMovements.reduce((sum, mov) => sum + mov.withdrawal, 0),
+                    capitalUSD: monthMovements.reduce((sum, mov) => sum + mov.capital, 0),
+                    balanceARS: currentBalance,
+                    balanceUSD: currentBalance / projectedExchangeRate,
+                    exchangeRate: projectedExchangeRate
+                });
+            }
+            return results;
+        }
+
+        function simulateAlternative(initialUSD, months, annualRate, movementsList, type, baseExchangeRate) {
+            let currentBalance = initialUSD;
+            let results = [];
+            let totalWithdrawals = 0;
+            let totalCapital = 0;
+
+            for (let m = 1; m <= months; m++) {
+                const startBalance = currentBalance;
+                let gain = 0;
+                let withdrawalAmount = 0;
+                let capitalAmount = 0;
+
+                if (type === 'plazo_fijo_uva') {
+                    const monthlyAdjustment = 0.03 + (0.01/12);
+                    gain = currentBalance * monthlyAdjustment;
+                } else if (type === 'cedears' || type === 'on') {
+                    const monthlyReturn = annualRate / 12;
+                    gain = currentBalance * monthlyReturn;
+                    if (type === 'cedears') {
+                        const dollarAppreciation = 0.02;
+                        gain *= (1 + dollarAppreciation);
+                    }
+                } else if (type === 'bonos') {
+                    const volatility = 0.15;
+                    const randomFactor = 1 + (Math.random() - 0.5) * volatility;
+                    gain = currentBalance * (annualRate/12) * randomFactor;
+                } else {
+                    gain = currentBalance * (annualRate / 12);
+                }
+                
+                currentBalance += gain;
+
+                const monthMovements = movementsList.filter(mov => mov.month === m);
+                monthMovements.forEach(mov => {
+                    if (mov.withdrawal > 0) {
+                        if (currentBalance >= mov.withdrawal) {
+                            currentBalance -= mov.withdrawal;
+                            withdrawalAmount += mov.withdrawal;
+                            totalWithdrawals += mov.withdrawal;
+                        } else {
+                            withdrawalAmount = currentBalance;
+                            totalWithdrawals += currentBalance;
+                            currentBalance = 0;
+                        }
+                    }
+                    
+                    if (mov.capital > 0) {
+                        currentBalance += mov.capital;
+                        capitalAmount += mov.capital;
+                        totalCapital += mov.capital;
+                    }
+                });
+
+                results.push({
+                    month: m,
+                    startBalanceUSD: startBalance,
+                    gainUSD: gain,
+                    withdrawalUSD: withdrawalAmount,
+                    capitalUSD: capitalAmount,
+                    totalWithdrawalsUSD: totalWithdrawals,
+                    totalCapitalUSD: totalCapital,
+                    balanceUSD: currentBalance
+                });
+            }
+            return results;
+        }
+
+        function renderTable(data, scenario) {
+            const tbody = document.querySelector('#resultsTable tbody');
+            tbody.innerHTML = '';
+            
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                const monthMovement = movements.find(m => m.month === row.month);
+                const withdrawalValue = monthMovement ? monthMovement.withdrawal : 0;
+                const capitalValue = monthMovement ? monthMovement.capital : 0;
+                const withdrawalDetails = monthMovement ? monthMovement.withdrawalDetails : [];
+                const capitalDetails = monthMovement ? monthMovement.capitalDetails : [];
+                
+                if (scenario === 'A') {
+                    tr.innerHTML = `
+                        <td style="text-align:center; font-weight:600;">${row.month}</td>
+                        <td>$${row.startBalanceARS.toLocaleString('es-AR', {maximumFractionDigits: 0})}</td>
+                        <td class="profit">+$${row.interestARS.toLocaleString('es-AR', {maximumFractionDigits: 0})}</td>
+                        <td class="withdrawal-input-cell" onclick="enableWithdrawalEdit(${row.month}, ${withdrawalValue}, '${scenario}')">
+                            ${withdrawalValue > 0 ? 
+                                `<div class="withdrawal-display" id="display-w-${row.month}">-$${withdrawalValue.toLocaleString('es-AR')}</div>${withdrawalDetails.length > 0 ? '<span class="annotator-icon">📝</span>' : ''}` :
+                                `<div class="add-withdrawal-hint" id="display-w-${row.month}">+ Click</div>`
+                            }
+                        </td>
+                        <td class="capital-input-cell" onclick="enableCapitalEdit(${row.month}, ${capitalValue}, '${scenario}')">
+                            ${capitalValue > 0 ? 
+                                `<div class="capital-display" id="display-c-${row.month}">+$${capitalValue.toLocaleString('es-AR')}</div>${capitalDetails.length > 0 ? '<span class="annotator-icon">📝</span>' : ''}` :
+                                `<div class="add-withdrawal-hint" id="display-c-${row.month}">+ Click para agregar</div>`
+                            }
+                        </td>
+                        <td style="font-weight:600;">$${row.balanceARS.toLocaleString('es-AR', {maximumFractionDigits: 0})}</td>
+                        <td style="color:#667eea; font-weight:600;">$${row.balanceUSD.toLocaleString('es-AR', {maximumFractionDigits: 0})}</td>
+                    `;
+                } else {
+                    tr.innerHTML = `
+                        <td style="text-align:center; font-weight:600;">${row.month}</td>
+                        <td>$${row.startBalanceUSD.toLocaleString('es-AR', {maximumFractionDigits: 0})}</td>
+                        <td class="${row.gainUSD >= 0 ? 'profit' : 'loss'}">${row.gainUSD >= 0 ? '+' : ''}$${row.gainUSD.toLocaleString('es-AR', {maximumFractionDigits: 0})}</td>
+                        <td class="withdrawal-input-cell" onclick="enableWithdrawalEdit(${row.month}, ${withdrawalValue}, '${scenario}')">
+                            ${withdrawalValue > 0 ? 
+                                `<div class="withdrawal-display" id="display-w-${row.month}">-$${withdrawalValue.toLocaleString('es-AR')}</div>${withdrawalDetails.length > 0 ? '<span class="annotator-icon">📝</span>' : ''}` :
+                                `<div class="add-withdrawal-hint" id="display-w-${row.month}">+ Click</div>`
+                            }
+                        </td>
+                        <td class="capital-input-cell" onclick="enableCapitalEdit(${row.month}, ${capitalValue}, '${scenario}')">
+                            ${capitalValue > 0 ? 
+                                `<div class="capital-display" id="display-c-${row.month}">+$${capitalValue.toLocaleString('es-AR')}</div>${capitalDetails.length > 0 ? '<span class="annotator-icon">📝</span>' : ''}` :
+                                `<div class="add-withdrawal-hint" id="display-c-${row.month}">+ Click para agregar</div>`
+                            }
+                        </td>
+                        <td style="font-weight:600;">$${row.balanceUSD.toLocaleString('es-AR', {maximumFractionDigits: 0})}</td>
+                        <td style="color:#e74c3c; font-weight:600;">-$${row.totalWithdrawalsUSD.toLocaleString('es-AR', {maximumFractionDigits: 0})}</td>
+                    `;
+                }
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderChart(nameA, nameB, dataA, dataB) {
+            const ctx = document.getElementById('growthChart').getContext('2d');
+            
+            if (chartInstance) chartInstance.destroy();
+
+            const labels = dataA.map(d => `Mes ${d.month}`);
+            const balancesA_USD = dataA.map(d => d.balanceUSD);
+            const balancesB_USD = dataB.map(d => d.balanceUSD);
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: `${nameA} (Pesos)`,
+                            data: balancesA_USD,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 3
+                        },
+                        {
+                            label: `${nameB} (USD)`,
+                            data: balancesB_USD,
+                            borderColor: '#e74c3c',
+                            backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: $${context.parsed.y.toLocaleString('es-AR', {maximumFractionDigits: 0})} USD`;
+                                }
+                            }
+                        },
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Valor en USD (estimado)',
+                                color: '#2c3e50',
+                                font: { size: 12, weight: 'bold' }
+                            },
+                            grid: {
+                                color: '#bdc3c7',
+                                lineWidth: 1,
+                                drawBorder: true,
+                                borderColor: '#95a5a6',
+                                borderWidth: 2
+                            },
+                            ticks: {
+                                color: '#2c3e50',
+                                font: { size: 11 },
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString('es-AR', {notation: 'compact'});
+                                }
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Tiempo (meses)',
+                                color: '#2c3e50',
+                                font: { size: 12, weight: 'bold' }
+                            },
+                            grid: {
+                                color: '#bdc3c7',
+                                lineWidth: 1,
+                                drawBorder: true,
+                                borderColor: '#95a5a6',
+                                borderWidth: 2
+                            },
+                            ticks: {
+                                color: '#2c3e50',
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Cerrar modal al hacer clic fuera
+        document.getElementById('annotatorModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeAnnotator();
+            }
+        });
+
+        // ==================== INICIALIZACIÓN ====================
+        
+        // Cargar datos guardados al iniciar
+        window.addEventListener('load', function() {
+            updateScenarioB();
+            loadSavedData();
+        });
+    </script>
+</body>
+</html>
